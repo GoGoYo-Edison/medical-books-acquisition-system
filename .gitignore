@@ -1,0 +1,29 @@
+# ===== 真实业务数据：切勿提交到仓库 =====
+# 图书馆机读目录 / 选购清单等原始业务数据（含真实书目、价格、馆藏信息）
+*.iso
+*.ISO
+*.mrc
+*选购*.xlsx
+*选购*.xlsm
+*选购*.xls
+*勾选*.csv
+*清单*.csv
+*图书*.csv
+健康*
+
+# ===== 保留脱敏示例数据 =====
+!samples/
+!samples/*
+
+# ===== Office / 系统临时文件 =====
+~$*
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== 编辑器 / IDE =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

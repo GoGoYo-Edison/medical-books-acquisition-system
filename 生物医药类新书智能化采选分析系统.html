@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<!--
+  生物医药类新书智能化采选分析系统
+  ---------------------------------
+  单文件纯前端应用：ISO 2709 / CNMARC 书目解析、候选与已选书目统计、
+  生物医药十大出版社占比、AI 数据问答（OpenAI 兼容接口）。
+  所有计算均在浏览器本地完成，不上传任何数据。
+  License: MIT ｜ Version: 1.0.0
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>生物医药类新书智能化采选分析系统</title>
+<style>
+:root{--pri:#0f766e;--pri2:#14b8a6;--bg:#f6f8f8;--line:#d9e2e0;--txt:#1f2d2b;--muted:#6b7f7c;}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.6 "Microsoft YaHei",system-ui,sans-serif;color:var(--txt);background:var(--bg);display:flex;flex-direction:column;height:100vh;overflow:hidden}
+header{background:linear-gradient(135deg,#0f766e,#115e59);color:#fff;padding:10px 16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+header h1{font-size:18px;margin:0;white-space:nowrap}
+header .sub{font-size:12px;opacity:.85}
+.hbtns{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#fileInfo{display:inline-block;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle}
+.discBox{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.14);padding:3px 8px;border-radius:6px}
+.discBox .dlabel{font-size:12px;color:#fff;white-space:nowrap}
+.discBox input{width:64px;padding:4px 6px;border:none;border-radius:5px;font-size:13px}
+.btn{background:#fff;color:var(--pri);border:none;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:13px}
+.btn:hover{background:#e6fffb}
+.btn.ghost{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.5)}
+#dropHint{font-size:12px;opacity:.9}
+.tabs{display:flex;background:#eaf1f0;border-bottom:1px solid var(--line)}
+.tab{padding:8px 18px;cursor:pointer;border:none;background:none;font-size:14px;color:var(--muted);border-bottom:2px solid transparent}
+.tab.on{color:var(--pri);border-bottom-color:var(--pri);font-weight:bold}
+main{flex:1;overflow:hidden;display:flex}
+section.tabpage{display:none;flex:1;overflow:auto;padding:12px 16px}
+section.tabpage.on{display:block}
+/* 工具条 */
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.mini{padding:2px 10px;border:1px solid var(--line);background:#fff;border-radius:5px;cursor:pointer;font-size:12px;margin-right:4px}
+.mini.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+.lgd{font-size:12px;color:var(--muted);margin:2px 0;white-space:nowrap}
+.lgd span{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px}
+.toolbar input[type=text],.toolbar input[type=search]{padding:6px 10px;border:1px solid var(--line);border-radius:6px;width:240px}
+.toolbar select{padding:6px;border:1px solid var(--line);border-radius:6px}
+.chipbar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;font-size:12px;color:var(--muted)}
+/* 表格 */
+.tblwrap{overflow:auto;border:1px solid var(--line);border-radius:8px;background:#fff;min-height:260px;max-height:calc(100vh - 300px)}
+table{border-collapse:separate;border-spacing:0;width:100%;font-size:13px}
+thead th{position:sticky;top:0;background:#eef4f3;padding:8px 10px;text-align:left;cursor:pointer;user-select:none;white-space:nowrap;border-bottom:2px solid var(--line);z-index:2}
+thead th:hover{background:#dcebe9}
+thead th .arr{color:var(--pri);margin-left:4px}
+tbody td{padding:7px 10px;border-bottom:1px solid #eef2f1;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+tbody tr:hover{background:#f2fbfa;cursor:pointer}
+.filters th input{width:90%;padding:4px 6px;border:1px solid var(--line);border-radius:4px;font-size:12px}
+.pager{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.pager button{padding:4px 10px;border:1px solid var(--line);background:#fff;border-radius:6px;cursor:pointer}
+.pager button:disabled{opacity:.4;cursor:default}
+/* 统计 */
+.statgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
+.card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.card h3{margin:0 0 8px;font-size:14px;color:var(--pri)}
+.bar{display:flex;align-items:center;gap:8px;margin:3px 0}
+.bar .lab{width:150px;font-size:12px;color:var(--muted);text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar .trk{flex:1;background:#eef2f1;border-radius:4px;height:16px;overflow:hidden}
+.bar .fill{height:100%;background:linear-gradient(90deg,var(--pri2),var(--pri));}
+.bar .val{width:64px;font-size:12px}
+.kpi{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.kpi .k{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 16px;text-align:center}
+.kpi .k b{display:block;font-size:20px;color:var(--pri)}
+/* AI 面板 */
+#aiPanel{border-top:2px solid var(--pri);background:#fff;display:flex;flex-direction:column}
+#aiPanel.min{height:auto}
+#aiPanel .head{display:flex;align-items:center;gap:10px;padding:8px 14px;background:#eefaf8;cursor:pointer}
+#aiPanel .head b{color:var(--pri)}
+#aiPanel .body{flex:1;display:flex;overflow:hidden;height:min(320px,45vh)}
+#aiCfg{width:300px;border-right:1px solid var(--line);padding:10px 12px;overflow:auto;font-size:12px}
+#aiCfg label{display:block;margin:8px 0 2px;color:var(--muted)}
+#aiCfg input,#aiCfg select,#aiCfg textarea{width:100%;padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-size:12px}
+#chatcol{flex:1;display:flex;flex-direction:column}
+#msgs{flex:1;overflow:auto;padding:12px 16px;display:flex;flex-direction:column;gap:10px}
+.msg{max-width:82%;padding:8px 12px;border-radius:10px;white-space:pre-wrap;word-break:break-word;font-size:13px}
+.msg.user{align-self:flex-end;background:var(--pri);color:#fff}
+.msg.ai{align-self:flex-start;background:#f1f5f4}
+.msg.err{align-self:center;background:#fef2f2;color:#b91c1c;font-size:12px}
+.msg details{margin-top:6px;font-size:12px}
+#inputrow{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--line)}
+#q{flex:1;padding:8px 12px;border:1px solid var(--line);border-radius:8px}
+#send{background:var(--pri);color:#fff;border:none;border-radius:8px;padding:8px 20px;cursor:pointer}
+#send:disabled{opacity:.5}
+.hint{color:var(--muted);font-size:12px;margin:4px 0}
+dialog{border:1px solid var(--line);border-radius:12px;max-width:860px;width:92%;max-height:85vh}
+dialog::backdrop{background:rgba(0,0,0,.35)}
+.dtable{width:100%;font-size:13px;border-collapse:collapse}
+.dtable td,.dtable th{border:1px solid #e5eeec;padding:5px 8px;vertical-align:top}
+.dtable th{background:#eef4f3;white-space:nowrap}
+code{background:#eef2f1;padding:1px 5px;border-radius:4px}
+.ftable td{font-family:Consolas,monospace;font-size:12px}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>生物医药类新书智能化采选分析系统</h1>
+    <div class="sub">ISO 2709 / CNMARC 机读目录解析 · 候选书目分析 · 已选书目分析 · AI 问答</div>
+  </div>
+  <div class="hbtns">
+    <span id="dropHint">将 .iso / .mrc 文件拖到本页任意位置，或</span>
+    <input type="file" id="file" accept=".iso,.ISO,.mrc,.dat,.txt" hidden>
+    <button class="btn" onclick="file.click()">选择文件</button>
+    <span class="discBox"><span class="dlabel">订购折扣</span><input type="number" id="discInput" min="0" max="100" step="0.1" value="100"><span class="dlabel">%</span><button class="btn" id="discBtn" title="确定后对全部数据生效：实洋 = 定价 × 订购折扣">确定</button></span>
+    <button class="btn ghost" id="demoBtn" hidden>载入示例</button>
+    <span id="fileInfo"></span>
+  </div>
+</header>
+
+<div class="tabs">
+  <button class="tab on" data-t="table">数据表格</button>
+  <button class="tab" data-t="stats">候选书目分析</button>
+  <button class="tab" data-t="selected">已选书目分析</button>
+  <button class="tab" data-t="format">ISO 2709 格式说明</button>
+</div>
+
+<main>
+  <!-- ============ 数据表格 ============ -->
+  <section class="tabpage on" id="tab-table">
+    <div class="toolbar">
+      <span style="white-space:nowrap">🔍</span>
+      <input type="search" id="qsearch" placeholder="检索书目：题名 / 著者 / ISBN / 简介…" title="输入书名、著者、ISBN 等检索当前书目数据；大模型接口地址请在页面底部 AI 面板中填写">
+      <select id="pageSize"><option>20</option><option selected>50</option><option>100</option><option value="0">全部</option></select>
+      <span class="hint" id="sortHint">点击列头排序；再次点击切换升/降序</span>
+      <button class="btn" style="border:1px solid var(--line)" onclick="colPop.show()">列显示设置</button>
+      <button class="btn" id="delBtn" style="border:1px solid #eec7c7;color:#b91c1c" onclick="deleteChecked()" disabled title="勾选行首复选框后，点击此按钮批量删除所选记录">删除勾选</button>
+      <button class="btn" id="csvBtn" style="border:1px solid var(--line)" onclick="exportCSV()" disabled title="仅导出勾选的条目（CSV 格式）">导出CSV</button>
+      <button class="btn" id="isoBtn" style="border:1px solid var(--line)" onclick="exportISO()" disabled title="仅导出勾选的条目（ISO 2709 格式，编码与记录结构与导入文件一致）">导出ISO</button>
+    </div>
+    <div class="chipbar" id="chips"></div>
+    <div class="tblwrap">
+      <table id="tbl">
+        <thead id="thead"></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="pager" id="pager"></div>
+  </section>
+
+  <!-- ============ 统计分析 ============ -->
+  <section class="tabpage" id="tab-stats">
+    <div class="kpi" id="kpis"></div>
+    <div class="statgrid" id="statgrid"></div>
+  </section>
+
+  <!-- ============ 已选书目分析 ============ -->
+  <section class="tabpage" id="tab-selected">
+    <div class="toolbar">
+      <input type="file" id="xlFile" accept=".xlsx,.xlsm,.csv" hidden>
+      <button class="btn" style="border:1px solid var(--line)" onclick="xlFile.click()">上传Excel/CSV文件</button>
+      <span class="hint" id="xlInfo">支持 .xlsx / .csv 选购清单（书名 / 定价 / 实洋 / 著者 / 出版社 / 出版时间 / 内容简介 / 选择理由）。建议先在"数据表格"载入 ISO 书目，系统将按书名自动匹配中图法分类用于 Q/R 小类统计。</span>
+    </div>
+    <div class="kpi" id="selKpis"></div>
+    <div class="statgrid" id="selGrid"></div>
+  </section>
+
+  <!-- ============ 格式说明 ============ -->
+  <section class="tabpage" id="tab-format">
+    <h2>ISO 2709 / CNMARC 文件格式与内容编排</h2>
+    <p>本系统处理的 <code>.ISO</code> 文件是图书馆行业的<b>机读目录交换格式</b>（ISO 2709 标准，中文文献采用 CNMARC 字段体系），并非光盘镜像。文件为<b>字节流</b>结构，中文使用 GBK/GB2312 编码，每条记录之间以 CRLF 分隔。</p>
+    <h3>一条记录的三段式结构</h3>
+    <table class="dtable">
+      <tr><th>区域</th><th>构成</th><th>说明</th></tr>
+      <tr><td>① 头标区 Leader</td><td>固定 24 字节 ASCII</td><td><code>01097oam2 2200349   450</code>：0–4 位记录总长｜5 记录状态｜6 记录类型(a=文字)｜7 书目级别(m=专著)｜10 指示符长度(2)｜11 子字段标识符长度(2)｜12–16 数据区基地址｜20–23 目次区结构(4+5+0)</td></tr>
+      <tr><td>② 目次区 Directory</td><td>每 12 字节一项，以 0x1E 结尾</td><td>字段号(3) + 字段长度(4) + 字段起始位置(5)，如 <code>200005500011</code> 表示 200 字段长 55 字节、位于数据区偏移 11</td></tr>
+      <tr><td>③ 数据字段区</td><td>自基地址起顺排，每个字段以 0x1E 结尾</td><td>控制字段(001–009)直接存数据；数据字段 = 2 位指示符 + 若干子字段，子字段以 0x1F 开头接子字段代码</td></tr>
+    </table>
+    <p>三层分隔符：<code>0x1D</code> 记录结束 → <code>0x1E</code> 字段结束 → <code>0x1F</code> 子字段开始。记录长度自校验：头标区给出的记录总长 = 实际字节数。</p>
+    <h3>常用 CNMARC 字段（与 xlsx 导出列的对应关系）</h3>
+    <table class="dtable" id="mapTable">
+      <tr><th>MARC 字段</th><th>含义</th><th>主要子字段</th><th>对应 xlsx 列</th></tr>
+      <tr><td>001</td><td>记录控制号</td><td>—</td><td>（记录号）</td></tr>
+      <tr><td>010</td><td>ISBN</td><td>$a ISBN $b 装帧 $d 定价</td><td>ISBN / 装帧 / 定价1</td></tr>
+      <tr><td>100</td><td>通用处理数据</td><td>$a 出版日期/语种编码块</td><td>—</td></tr>
+      <tr><td>101</td><td>作品语种</td><td>$a 语种代码</td><td>语种</td></tr>
+      <tr><td>200</td><td>题名与责任说明</td><td>$a 正题名 $e 副题名 $h/i 分辑 $f 第一责任者 $g 第二责任者</td><td>主题名/副题名/分辑/第一·第二责任者</td></tr>
+      <tr><td>205</td><td>版本项</td><td>$a 版本</td><td>版本项</td></tr>
+      <tr><td>210</td><td>出版发行项</td><td>$a 出版地 $c 出版者 $d 出版时间</td><td>出版地/出版者/出版时间</td></tr>
+      <tr><td>215</td><td>载体形态项</td><td>$a 页码 $c 图 $d 尺寸(开本)</td><td>页码/图/开本</td></tr>
+      <tr><td>225</td><td>丛编项</td><td>$a 丛书名 $h 分辑</td><td>丛书项</td></tr>
+      <tr><td>330</td><td>提要或文摘</td><td>$a 内容简介</td><td>内容简介</td></tr>
+      <tr><td>333</td><td>读者对象附注</td><td>$a 读者对象</td><td>读者对象</td></tr>
+      <tr><td>606</td><td>主题词</td><td>$a 主题 $x 复分</td><td>主题词</td></tr>
+      <tr><td>690</td><td>中图法分类号</td><td>$a 分类号 $v 版次</td><td>中图法分类</td></tr>
+      <tr><td>701/702</td><td>等同/其他责任者</td><td>$a 姓名 $c 国别/职业 $4 责任方式</td><td>（并入责任者）</td></tr>
+    </table>
+    <h3>常见文件实测特征</h3>
+    <ul>
+      <li>中文书目常见为 GBK 编码，也可能为 UTF-8（系统自动识别）；记录间以 CRLF 分隔，单条记录数百至数千字节不等</li>
+      <li>常见字段：001/010/100/101/102/105/106/200/210/215/330/606/690/701/801 等</li>
+      <li>头标区第 6 位 a=普通图书，第 7 位 m=专著；记录类型常见 <code>oam2</code>/<code>nam0</code> 等</li>
+    </ul>
+  </section>
+</main>
+
+<!-- ============ AI 对话面板 ============ -->
+<div id="aiPanel">
+  <div class="head" onclick="toggleAI()">
+    <b>🤖 AI 数据问答</b>
+    <span class="hint" id="aiState">未接入大模型 —— 点击展开，在左侧填入 OpenAI 兼容接口后即可对话</span>
+    <span style="margin-left:auto" id="aiArrow">▾</span>
+  </div>
+  <div class="body" id="aiBody" style="display:none">
+    <div id="aiCfg">
+      <b style="color:var(--pri)">大模型接口配置（OpenAI 兼容）</b>
+      <label>服务商预设（一键填充地址和模型）</label>
+      <select id="cfgPreset">
+        <option value="">— 选择后自动填充 —</option>
+        <option value="https://api.deepseek.com/v1/chat/completions|deepseek-chat">DeepSeek（deepseek-chat）</option>
+        <option value="https://open.bigmodel.cn/api/paas/v4/chat/completions|glm-4-flash">智谱 GLM（glm-4-flash）</option>
+        <option value="https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions|qwen-plus">通义千问（qwen-plus）</option>
+        <option value="https://api.moonshot.cn/v1/chat/completions|kimi-k2-0909-preview">Kimi / 月之暗面</option>
+        <option value="https://api.openai.com/v1/chat/completions|gpt-4o-mini">OpenAI</option>
+        <option value="http://localhost:11434/v1/chat/completions|qwen3">Ollama 本地</option>
+      </select>
+      <label>接口地址（填 base 地址即可，自动补全 /chat/completions）</label>
+      <input id="cfgUrl" placeholder="如 https://api.deepseek.com 或 …/v1/chat/completions">
+      <label>API Key</label>
+      <input id="cfgKey" type="password" placeholder="sk-...">
+      <label>模型名称</label>
+      <input id="cfgModel" placeholder="deepseek-chat / glm-4 / qwen-plus …">
+      <label>温度</label>
+      <input id="cfgTemp" type="number" step="0.1" min="0" max="2" value="0.3">
+      <label>随问题附带的数据上下文</label>
+      <select id="cfgCtx">
+        <option value="stats" selected>统计摘要 + 相关检索(前8条) + 样本10条</option>
+        <option value="more">统计摘要 + 相关检索(前15条) + 样本30条</option>
+        <option value="all">统计摘要 + 当前筛选结果全部记录（记录多时消耗大量 token，需大上下文模型）</option>
+        <option value="pub50">统计摘要 + 当前筛选全部记录 + 十大出版社占比（判断是否不低于50%，记录多时消耗大量 token）</option>
+        <option value="min">仅统计摘要（不附记录明细）</option>
+      </select>
+      <label>系统提示词（可修改）</label>
+      <textarea id="cfgSys" rows="4"></textarea>
+      <label><input type="checkbox" id="cfgStream" checked> 流式输出</label>
+      <div style="display:flex;gap:6px;margin-top:10px">
+        <button class="btn" style="border:1px solid var(--line)" onclick="testLLM()">测试连接</button>
+        <button class="btn" style="border:1px solid var(--line)" onclick="clearCfg()">清空配置</button>
+      </div>
+      <p class="hint">接口须兼容 OpenAI Chat Completions 协议（DeepSeek / 智谱 / 通义 / Kimi / 本地 Ollama 等均可）。浏览器直连时，服务端需允许跨域(CORS)。本地 Ollama 需设置环境变量 OLLAMA_ORIGINS=* 后重启。</p>
+    </div>
+    <div id="chatcol">
+      <div id="msgs"><div class="msg ai">载入 ISO 文件后，即可就数据向我提问，例如："按出版社统计数量""最贵的10本书""R7类图书有哪些"；也可以让我帮你选书，如"勾选R65类手术学图书""勾选定价低于100元的书"，选中的条目会自动在表格中勾选，然后可批量删除或导出。</div></div>
+      <div id="inputrow">
+        <input id="q" placeholder="输入问题，回车发送（基于当前筛选后的数据回答）">
+        <button id="send" onclick="ask()" disabled>发送</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<dialog id="detail">
+  <div style="display:flex;align-items:center"><b id="dTitle"></b>
+    <button class="btn" style="margin-left:auto;border:1px solid var(--line)" onclick="detail.close()">关闭</button></div>
+  <div id="dBody" style="margin-top:10px;overflow:auto"></div>
+</dialog>
+
+<!-- 列显示设置 -->
+<dialog id="colPop">
+  <b>选择要显示的列</b>
+  <div id="colChecks" style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin:12px 0"></div>
+  <button class="btn" style="border:1px solid var(--line)" onclick="applyCols()">应用</button>
+  <button class="btn" style="border:1px solid var(--line)" onclick="colPop.close()">取消</button>
+</dialog>
+
+<!-- ================= 核心：ISO 2709 解析器（无 DOM 依赖，可单测） ================= -->
+<script id="core">
+// 三层分隔符
+const RS=0x1D, FS=0x1E, SF=0x1F;
+
+function decodeAuto(bytes){                 // 先按 UTF-8 严格解码，失败则按 GBK
+  try{ return {enc:'utf-8', text:new TextDecoder('utf-8',{fatal:true}).decode(bytes)}; }
+  catch(e){ return {enc:'gbk', text:new TextDecoder('gbk').decode(bytes)}; }
+}
+function parseISO2709(buf, enc){            // buf: Uint8Array；enc: 'gbk'|'utf-8'|'auto'
+  if(enc==='auto') enc = decodeAuto(buf.subarray(0,4096)).enc;
+  const dec = new TextDecoder(enc);
+  const chunks=[]; let s=0;
+  for(let i=0;i<buf.length;i++){ if(buf[i]===RS){ chunks.push(buf.subarray(s,i)); s=i+1; } }
+  if(s<buf.length) chunks.push(buf.subarray(s));
+  // 检测记录分隔字节（首个 0x1D 之后、下一记录之前的 CRLF/LF），导出时原样回填
+  let sep=new Uint8Array(0);
+  for(let i=0;i<buf.length;i++){ if(buf[i]===RS){ let j=i+1; const arr=[];
+    while(j<buf.length&&(buf[j]===13||buf[j]===10)) arr.push(buf[j++]);
+    sep=Uint8Array.from(arr); break; } }
+  const recs=[];
+  for(let raw of chunks){
+    while(raw.length && (raw[0]===13||raw[0]===10||raw[0]===32)) raw=raw.subarray(1);
+    while(raw.length && (raw[raw.length-1]===13||raw[raw.length-1]===10||raw[raw.length-1]===32)) raw=raw.subarray(0,raw.length-1);
+    if(raw.length<25) continue;
+    let leader;
+    try{ leader = new TextDecoder('ascii').decode(raw.subarray(0,24)); }catch(e){ continue; }
+    const base=parseInt(leader.slice(12,17),10);
+    if(!Number.isFinite(base)||base<25||base>raw.length) continue;
+    let dirStr;
+    try{ dirStr = new TextDecoder('ascii').decode(raw.subarray(24, base-1)); }catch(e){ continue; }
+    const fields=[];
+    for(let i=0;i+12<=dirStr.length;i+=12){
+      const e=dirStr.substr(i,12);
+      const tag=e.slice(0,3), len=parseInt(e.slice(3,7),10), pos=parseInt(e.slice(7,12),10);
+      if(!Number.isFinite(len)||!Number.isFinite(pos)) continue;
+      const end=base+pos+len-1;             // 末位为字段结束符 0x1E
+      fields.push({tag, text: dec.decode(raw.subarray(base+pos, Math.min(end, raw.length)))});
+    }
+    recs.push({leader, fields, raw, sep});
+  }
+  return recs;
+}
+function subParse(text){                    // 数据字段：2 位指示符 + \x1F 子字段
+  const inds=text.slice(0,2), subs=[];
+  for(const p of text.slice(2).split(String.fromCharCode(SF))){
+    if(p) subs.push({code:p[0], value:p.slice(1)});
+  }
+  return {inds, subs};
+}
+function subVals(field, code){              // 取某字段指定子字段的全部值
+  return field ? subParse(field.text).subs.filter(s=>s.code===code).map(s=>s.value) : [];
+}
+function firstSub(fields, tag, code){
+  const f=fields.find(f=>f.tag===tag);
+  return subVals(f, code)[0]||'';
+}
+function joinSubs(fields, tag, codes, sep){ // 同类字段多值合并（606 主题词等）
+  const out=[];
+  for(const f of fields) if(f.tag===tag){
+    const parts=[];
+    for(const c of codes) for(const v of subVals(f, c)) parts.push(v);
+    if(parts.length) out.push(parts.join(' '));
+  }
+  return out.join(sep||'；');
+}
+const CNUM={'chi':'中文','eng':'英文','jpn':'日文','rus':'俄文','fre':'法文','ger':'德文','kor':'朝鲜文','mul':'多语种'};
+function parsePrice(d){                     // "CNY265.00" → 265.00
+  const m=(d||'').replace(/,/g,'').match(/(\d+(?:\.\d+)?)/);
+  return m?parseFloat(m[1]):NaN;
+}
+function parseYear(d){                      // "2020.07"/"2003" → 2020
+  const m=(d||'').match(/(1[5-9]|20)\d{2}/);
+  return m?parseInt(m[0],10):NaN;
+}
+function marcToRow(rec, idx){               // 一条 MARC 记录 → 扁平行（列名与常见 xlsx 导出一致）
+  const F=rec.fields;
+  const g=(tag,code)=>firstSub(F,tag,code);
+  const priceD = (F.filter(f=>f.tag==='010').map(f=>subVals(f,'d')[0]||'').find(Boolean))||'';
+  const bindD  = (F.filter(f=>f.tag==='010').map(f=>subVals(f,'b')[0]||'').find(Boolean))||'';
+  const isbn   = (F.filter(f=>f.tag==='010').map(f=>subVals(f,'a')[0]||'').find(Boolean))||'';
+  const t200=F.find(f=>f.tag==='200');
+  const page=g('215','a'), size=g('215','d');
+  const row={
+    '记录号': (F.find(f=>f.tag==='001')||{}).text||'',
+    'ISBN': isbn.replace(/\s/g,''),
+    '主题名': subVals(t200,'a')[0]||'',
+    '副题名': subVals(t200,'e').join(' '),
+    '分辑': [].concat(subVals(t200,'h'),subVals(t200,'i')).join(':'),
+    '版本项': g('205','a'),
+    '第一责任者': subVals(t200,'f').join('；'),
+    '第二责任者': subVals(t200,'g').join('；'),
+    '丛书项': (g('225','a')||'') + (subVals(F.find(f=>f.tag==='225'),'h').length? '：'+subVals(F.find(f=>f.tag==='225'),'h').join(':') : ''),
+    '定价': priceD, '_价格数值': parsePrice(priceD),
+    '实洋': '', '_实洋数值': NaN,
+    '装帧': bindD,
+    '出版地': g('210','a'),
+    '出版者': g('210','c'),
+    '出版时间': g('210','d'), '_年份': parseYear(g('210','d')),
+    '页码': page, '_页码数值': (()=>{const m=(page||'').replace(/,/g,'').match(/(\d+)/);return m?parseInt(m[1]):NaN;})(),
+    '图': g('215','c'), '开本': size,
+    '读者对象': g('333','a'),
+    '一般性附注': g('300','a'),
+    '内容简介': g('330','a'),
+    '主题词': joinSubs(F,'606',['a','x']),
+    '中图法分类': g('690','a'),
+    '语种': CNUM[g('101','a')]||g('101','a')||'',
+    '_rec': rec
+  };
+  return row;
+}
+function topCount(items, n){                // 值计数取前 N
+  const m=new Map();
+  for(const it of items){ const k=(it&&String(it).trim())||'(空)'; m.set(k,(m.get(k)||0)+1); }
+  return [...m.entries()].sort((a,b)=>b[1]-a[1]).slice(0,n||10);
+}
+</script>
+
+<!-- ================= 界面逻辑 ================= -->
+<script>
+const ALL_COLS=['记录号','ISBN','主题名','副题名','分辑','版本项','第一责任者','第二责任者','丛书项','定价','实洋','出版者','出版地','出版时间','页码','开本','图','装帧','读者对象','一般性附注','内容简介','主题词','中图法分类','语种'];
+const DEF_COLS=['记录号','ISBN','主题名','第一责任者','定价','实洋','出版者','出版时间','中图法分类','语种','内容简介'];
+let allRows=[], viewRows=[], sortState={col:null,dir:1}, visibleCols=[...DEF_COLS];
+let colFilter={}, page=0, encUsed='', fileName='';
+const checkedRows=new Set();                // 勾选的行（存行对象引用，用于批量删除）
+
+const $=id=>document.getElementById(id);
+function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+/* ---------- 文件载入 ---------- */
+async function loadFile(f){
+  fileName=f.name;
+  const buf=new Uint8Array(await f.arrayBuffer());
+  let recs=parseISO2709(buf,'auto');
+  if(!recs.length){ alert('未能按 ISO 2709 解析出任何记录，请确认文件格式。'); return; }
+  encUsed=decodeAuto(buf.subarray(0,4096)).enc;
+  allRows=recs.map(marcToRow);
+  applyDiscountToRows();
+  checkedRows.clear();
+  colFilter={}; sortState={col:null,dir:1}; page=0;
+  $('fileInfo').textContent=`${f.name}｜${allRows.length} 条记录｜${encUsed.toUpperCase()}`;
+  $('send').disabled=false;
+  $('aiState').textContent= llmCfg().url ? '已接入，可对话' : '数据已载入，填好左侧接口配置后即可对话';
+  buildColChecks(); applyFilter();
+}
+$('file').addEventListener('change',e=>{ if(e.target.files[0]) loadFile(e.target.files[0]); });
+document.addEventListener('dragover',e=>e.preventDefault());
+document.addEventListener('drop',e=>{ e.preventDefault(); if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+
+/* ---------- 筛选与排序 ---------- */
+function applyFilter(){
+  const kw=$('qsearch').value.trim().toLowerCase();
+  viewRows=allRows.filter(r=>{
+    for(const [c,v] of Object.entries(colFilter)){
+      if(v && !String(r[c]??'').toLowerCase().includes(v.toLowerCase())) return false;
+    }
+    if(kw){
+      const hay=(r['主题名']+' '+r['第一责任者']+' '+r['第二责任者']+' '+r['ISBN']+' '+r['出版者']+' '+r['内容简介']+' '+r['主题词']+' '+r['中图法分类']).toLowerCase();
+      if(!hay.includes(kw)) return false;
+    }
+    return true;
+  });
+  if(sortState.col){
+    const c=sortState.col, numeric=(c==='定价')?r=>r._价格数值:(c==='实洋')?r=>r._实洋数值:(c==='页码')?r=>r._页码数值:null;
+    viewRows.sort((a,b)=>{
+      let va,vb;
+      if(numeric){ va=numeric(a); vb=numeric(b); }
+      else if(c==='出版时间'){ va=a._年份; vb=b._年份; }
+      else { va=String(a[c]??''); vb=String(b[c]??''); return va.localeCompare(vb,'zh')*sortState.dir; }
+      const na=Number.isFinite(va),nb=Number.isFinite(vb);
+      if(na&&nb) return (va-vb)*sortState.dir;
+      if(na) return -1*sortState.dir;
+      if(nb) return 1*sortState.dir;
+      return 0;
+    });
+  }
+  page=0; render();
+}
+function setSort(col){
+  if(sortState.col===col) sortState.dir*=-1; else sortState={col,dir:1};
+  applyFilter();
+}
+$('qsearch').addEventListener('input',applyFilter);
+$('pageSize').addEventListener('change',applyFilter);
+
+/* ---------- 表格渲染 ---------- */
+function render(){
+  const thead=$('thead'), tbody=$('tbody');
+  const size=parseInt($('pageSize').value,10);
+  const total=viewRows.length, pages=size? Math.max(1,Math.ceil(total/size)):1;
+  if(page>=pages) page=pages-1;
+  const slice=size? viewRows.slice(page*size,(page+1)*size):viewRows;
+  const startNo=size? page*size:0;                         // 序号跨页延续上一页
+  const visChecked=slice.filter(r=>checkedRows.has(r)).length;
+  const allCk=slice.length>0&&visChecked===slice.length;   // 全选框只反映当前页
+  thead.innerHTML='<tr>'
+    +`<th style="width:34px;text-align:center;cursor:default"><input type="checkbox" id="chkAll" title="全选/取消勾选当前页" ${allCk?'checked':''} onclick="toggleAllChecked(this.checked)"></th>`
+    +'<th style="width:56px">序号</th>'
+    +visibleCols.map(c=>{
+      const arr=sortState.col===c?`<span class="arr">${sortState.dir>0?'▲':'▼'}</span>`:'';
+      return `<th onclick="setSort('${c}')">${c}${arr}</th>`;
+    }).join('')+'</tr>'
+  +'<tr class="filters"><th></th><th></th>'+visibleCols.map(c=>`<th><input placeholder="筛选" value="${esc(colFilter[c]||'')}"
+      oninput="colFilter['${c}']=this.value;page=0;applyFilterDebounced()"></th>`).join('')+'</tr>';
+  tbody.innerHTML='';
+  slice.forEach((r,idx)=>{
+    const tr=document.createElement('tr');
+    tr.onclick=()=>showDetail(r);
+    const tdc=document.createElement('td');          // 勾选框列
+    tdc.style.textAlign='center';
+    tdc.onclick=e=>e.stopPropagation();
+    const cb=document.createElement('input');
+    cb.type='checkbox'; cb.checked=checkedRows.has(r);
+    cb.title='勾选后可批量删除';
+    cb.onclick=e=>e.stopPropagation();
+    cb.onchange=()=>{ cb.checked?checkedRows.add(r):checkedRows.delete(r); render(); };
+    tdc.appendChild(cb);
+    tr.appendChild(tdc);
+    tr.insertAdjacentHTML('beforeend',
+      `<td style="color:var(--muted)">${startNo+idx+1}</td>`
+      +visibleCols.map(c=>{
+        let v=r[c];
+        if(c==='内容简介') v=(v||'').slice(0,60);
+        return `<td title="${esc(String(v??''))}">${esc(v??'')}</td>`;
+      }).join(''));
+    tbody.appendChild(tr);
+  });
+  if(!slice.length && allRows.length){
+    const q=$('qsearch').value.trim();
+    const hint=/https?:\/\//i.test(q)
+      ?'<br>检测到输入的是网址——若您想填写大模型接口地址，请展开页面底部"🤖 AI 数据问答"面板填写；此处用于检索书名、著者、ISBN 等书目信息。'
+      :'';
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td colspan="${visibleCols.length+2}" style="text-align:center;padding:26px;color:var(--muted)">当前条件下无匹配记录（已载入 ${allRows.length} 条书目）${hint}<br><button class="btn" style="border:1px solid var(--line);margin-top:10px" onclick="clearFilters()">清除检索与筛选，显示全部 ${allRows.length} 条</button></td>`;
+    tbody.appendChild(tr);
+  }
+  $('chips').innerHTML=`共 <b>${allRows.length}</b> 条｜当前显示 <b>${viewRows.length}</b> 条`
+    +(checkedRows.size?`｜已勾选 <b style="color:#b91c1c">${checkedRows.size}</b> 条`:'')
+    +(sortState.col?`｜排序：${sortState.col} ${sortState.dir>0?'升':'降'}序`:'')
+    +(discount!==100?`｜<b>订购折扣 ${discount}%</b>（实洋=定价×${discount}%）`:'')
+    +(fileName?`｜文件：${esc(fileName)}（${encUsed.toUpperCase()}）`:'');
+  const delB=$('delBtn'), csvB=$('csvBtn'), isoB=$('isoBtn');
+  const nSel=checkedRows.size;
+  if(delB){ delB.disabled=!nSel; delB.textContent=nSel?`删除勾选(${nSel})`:'删除勾选'; }
+  if(csvB){ csvB.disabled=!nSel; csvB.textContent=nSel?`导出CSV(${nSel})`:'导出CSV'; }
+  if(isoB){ isoB.disabled=!nSel; isoB.textContent=nSel?`导出ISO(${nSel})`:'导出ISO'; }
+  $('pager').innerHTML=size? `
+    <button ${page<=0?'disabled':''} onclick="page--;render()">上一页</button>
+    <span>第 ${page+1} / ${pages} 页</span>
+    <button ${page>=pages-1?'disabled':''} onclick="page++;render()">下一页</button>`:'';
+}
+let _deb=null;
+function applyFilterDebounced(){ clearTimeout(_deb); _deb=setTimeout(applyFilter,200); }
+function clearFilters(){ $('qsearch').value=''; colFilter={}; page=0; applyFilter(); }
+
+/* ---------- 勾选与批量删除 ---------- */
+function toggleAllChecked(on){              // 全选/取消只针对当前页显示的条目
+  const size=parseInt($('pageSize').value,10);
+  const slice=size? viewRows.slice(page*size,(page+1)*size):viewRows;
+  if(on) slice.forEach(r=>checkedRows.add(r));
+  else slice.forEach(r=>checkedRows.delete(r));
+  render();
+}
+function deleteChecked(){
+  const n=checkedRows.size;
+  if(!n) return;
+  if(!confirm(`确定删除已勾选的 ${n} 条记录吗？\n删除后将从当前数据中移除（如需保留请先"导出CSV"，或重新载入 ISO 文件恢复）。`)) return;
+  allRows=allRows.filter(r=>!checkedRows.has(r));
+  checkedRows.clear();
+  applyFilter();
+  $('fileInfo').textContent=fileName?`${fileName}｜${allRows.length} 条记录｜${encUsed.toUpperCase()}`:'';
+  $('send').disabled=!allRows.length;
+  if(document.querySelector('#tab-stats').classList.contains('on')) renderStats();
+}
+
+/* ---------- 列显示 ---------- */
+function buildColChecks(){
+  $('colChecks').innerHTML=ALL_COLS.map(c=>`<label><input type="checkbox" data-c="${c}" ${visibleCols.includes(c)?'checked':''}> ${c}</label>`).join('');
+}
+function applyCols(){
+  const set=new Set([...document.querySelectorAll('#colChecks input:checked')].map(i=>i.dataset.c));
+  visibleCols=ALL_COLS.filter(c=>set.has(c));
+  colPop.close(); render();
+}
+/* ---------- 详情 ---------- */
+function showDetail(r){
+  const rec=r._rec;
+  $('dTitle').textContent=`记录 ${r['记录号']}｜${r['主题名']}`;
+  let html=`<p class="hint">头标区 Leader：<code>${esc(rec.leader)}</code>
+    ｜记录长度 ${esc(rec.leader.slice(0,5))}｜类型 ${esc(rec.leader.slice(5,8))}｜基地址 ${esc(rec.leader.slice(12,17))}</p>
+    <table class="dtable ftable"><tr><th>字段</th><th>指示符</th><th>内容（$ 为子字段分隔）</th></tr>`;
+  for(const f of rec.fields){
+    const ctrl=parseInt(f.tag,10)<10;
+    const txt=esc(f.text).replace(/\x1f/g,'<span style="color:#0f766e">$</span>');
+    html+=`<tr><td><b>${f.tag}</b></td><td>${ctrl?'—':esc(f.text.slice(0,2).replace(/\x1f/g,''))}</td><td>${txt}</td></tr>`;
+  }
+  html+='</table>';
+  $('dBody').innerHTML=html;
+  detail.showModal();
+}
+/* ---------- 统计分析 ---------- */
+const CLC={'A':'马列主义毛泽东思想','B':'哲学、宗教','C':'社会科学总论','D':'政治、法律','E':'军事','F':'经济','G':'文化、科学、教育、体育','H':'语言、文字','I':'文学','J':'艺术','K':'历史、地理','N':'自然科学总论','O':'数理科学和化学','P':'天文学、地球科学','Q':'生物科学','R':'医药、卫生','S':'农业科学','T':'工业技术','U':'交通运输','V':'航空、航天','X':'环境、安全科学','Z':'综合性图书'};
+/* 生物医药类十大出版社：出版者字段含名称即命中，其余全部合并为"其他出版社" */
+const TOP10_PUBS=['人民卫生出版社','科学出版社','中国医药科技出版社','中国协和医科大学出版社','北京大学医学出版社','中国中医药出版社','人民军医出版社','上海科学技术出版社','高等教育出版社','化学工业出版社'];
+function top10PubPairs(names){
+  const cnt=TOP10_PUBS.map(()=>0); let other=0;
+  for(const n of names){
+    const s=String(n||'').trim();
+    const hit=s?TOP10_PUBS.findIndex(p=>s.includes(p)):-1;
+    if(hit>=0) cnt[hit]++; else other++;
+  }
+  const pairs=TOP10_PUBS.map((p,i)=>[p,cnt[i]]).filter(p=>p[1]>0);
+  if(other) pairs.push(['其他出版社',other]);
+  return pairs;
+}
+function nums(getter){ return viewRows.map(getter).filter(Number.isFinite).sort((a,b)=>a-b); }
+function quart(arr){ if(!arr.length) return [NaN,NaN,NaN,NaN];
+  const q=p=>arr[Math.min(arr.length-1,Math.floor(p*(arr.length-1)))];
+  return [arr[0], q(.25), q(.5), q(.75)]; }
+function renderStats(){
+  const price=nums(r=>r._价格数值), pages=nums(r=>r._页码数值), ny=nums(r=>r._实洋数值);
+  const [pmin,p25,pmed,p75]=quart(price);
+  const [nmin,,nmed,]=quart(pages);
+  $('kpis').innerHTML=`
+    <div class="k"><b>${viewRows.length}</b>当前记录数</div>
+    <div class="k"><b>${Number.isFinite(pmed)?'¥'+pmed.toFixed(2):'—'}</b>定价中位数</div>
+    <div class="k"><b>${Number.isFinite(pmin)?'¥'+Math.max(...price).toFixed(0):'—'}</b>最高定价</div>
+    <div class="k"><b>${price.length?(price.reduce((a,b)=>a+b,0)/price.length).toFixed(1):'—'}</b>平均定价(元)</div>
+    <div class="k"><b>${Number.isFinite(nmed)?nmed:'—'}</b>页码中位数</div>
+    <div class="k"><b>${ny.length?'¥'+ny.reduce((a,b)=>a+b,0).toFixed(0):'—'}</b>实洋合计${discount!==100?`(按${discount}%)`:''}</div>`;
+  const clsTop=topCount(viewRows.map(r=>{const c=r['中图法分类']||'';const L=c[0]||'';return L?(L+' '+ (CLC[L]||'')):'(无分类)';}),12);
+  const pubTop=topCount(viewRows.map(r=>r['出版者']),12);
+  const pubShare=top10PubPairs(viewRows.map(r=>r['出版者']));
+  const yrMap=new Map();
+  viewRows.forEach(r=>{const y=r._年份;if(Number.isFinite(y))yrMap.set(y,(yrMap.get(y)||0)+1);});
+  const yrTop=[...yrMap.entries()].sort((a,b)=>a[0]-b[0]).slice(-20);
+  const langTop=topCount(viewRows.map(r=>r['语种']),8);
+  const bindTop=topCount(viewRows.map(r=>r['装帧']),6);
+  const subTop=topCount((viewRows.map(r=>r['主题词']).join('；').split(/[；;]/)).map(s=>s.trim()).filter(Boolean),15);
+  const bars=barsHTML;
+  $('statgrid').innerHTML=`
+    <div class="card"><h3>中图法大类分布</h3>${bars(clsTop)}</div>
+    <div class="card"><h3>出版社 Top 12</h3>${bars(pubTop)}</div>
+    <div class="card"><h3>生物医药类十大出版社占比</h3>${pubShare.length?pieSVG(pubShare):'（暂无数据）'}</div>
+    <div class="card"><h3>出版年份分布（近20个年份）</h3>${bars(yrTop)}</div>
+    <div class="card"><h3>主题词 Top 15</h3>${bars(subTop)}</div>
+    <div class="card"><h3>语种分布</h3>${bars(langTop)}</div>
+    <div class="card"><h3>装帧分布</h3>${bars(bindTop)}</div>
+    <div class="card"><h3>定价分布（元）</h3>${bars(topCount(price.map(p=>p<50?'<50':p<100?'50–99':p<150?'100–149':p<200?'150–199':p<300?'200–299':'≥300'),8),v=>v+' 种')}</div>`;
+}
+/* ---------- CSV / ISO 导出（仅导出勾选的条目） ---------- */
+function checkedInOrder(){ return allRows.filter(r=>checkedRows.has(r)); }
+function exportCSV(){
+  const rows=checkedInOrder();
+  if(!rows.length) return;
+  const cols=visibleCols;
+  const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+  const lines=[cols.map(q).join(',')];
+  for(const r of rows) lines.push(cols.map(c=>q(r[c])).join(','));
+  const blob=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=(fileName||'export').replace(/\.\w+$/,'')+'_勾选.csv'; a.click();
+}
+function exportISO(){                        // 直接回写各记录的原始字节，与导入文件格式逐字节一致
+  const rows=checkedInOrder().filter(r=>r._rec&&r._rec.raw);
+  if(!rows.length){ alert('勾选的记录没有可导出的原始数据'); return; }
+  const sep=(rows[0]._rec.sep&&rows[0]._rec.sep.length)?rows[0]._rec.sep:new Uint8Array(0);
+  let total=0; for(const r of rows) total+=r._rec.raw.length+1+sep.length;
+  const out=new Uint8Array(total); let p=0;
+  for(const r of rows){
+    out.set(r._rec.raw,p); p+=r._rec.raw.length;
+    out[p++]=0x1D;                           // 记录结束符
+    if(sep.length){ out.set(sep,p); p+=sep.length; }
+  }
+  const blob=new Blob([out],{type:'application/octet-stream'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=(fileName||'export').replace(/\.\w+$/,'')+'_勾选.iso'; a.click();
+}
+/* ---------- 订购折扣 ---------- */
+let discount=100;
+function applyDiscountToRows(){
+  for(const r of allRows){
+    const p=r._价格数值;
+    r._实洋数值 = Number.isFinite(p) ? Math.round(p*discount)/100 : NaN;
+    r['实洋']   = Number.isFinite(p) ? (p*discount/100).toFixed(2) : '';
+  }
+}
+function applyDiscount(){
+  const v=parseFloat($('discInput').value);
+  if(!Number.isFinite(v)||v<0||v>100){ alert('请输入 0–100 之间的折扣百分比'); return; }
+  discount=Math.round(v*10)/10;
+  applyDiscountToRows();
+  applyFilter();
+  if(document.querySelector('#tab-stats').classList.contains('on')) renderStats();
+}
+$('discBtn').onclick=applyDiscount;
+$('discInput').addEventListener('keydown',e=>{ if(e.key==='Enter') applyDiscount(); });
+
+/* ---------- 标签页 ---------- */
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===t));
+  document.querySelectorAll('.tabpage').forEach(p=>p.classList.toggle('on',p.id==='tab-'+t.dataset.t));
+  if(t.dataset.t==='stats') renderStats();
+  if(t.dataset.t==='selected') renderSelected();
+});
+
+/* ================= 已选书目分析（Excel 上传） ================= */
+let selRaw=null, selA=null, selModules=[];
+
+function barsHTML(pairs,fmt){
+  return pairs.map(([k,v])=>{
+    const max=pairs[0][1]||1;
+    return `<div class="bar"><div class="lab" title="${esc(k)}">${esc(k)}</div>
+      <div class="trk"><div class="fill" style="width:${(v/max*100).toFixed(1)}%"></div></div>
+      <div class="val">${fmt?fmt(v):v}</div></div>`;}).join('');
+}
+
+/* —— 极简 xlsx 读取：ZIP 目录 + DecompressionStream 解压 + XML 解析（无外部依赖） —— */
+async function inflateRaw(bytes){
+  if(typeof DecompressionStream==='undefined') throw new Error('当前浏览器不支持解压组件，请使用新版 Chrome / Edge');
+  const out=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return new Uint8Array(await new Response(out).arrayBuffer());
+}
+function naturalSheet(a,b){
+  const na=parseInt(a.replace(/\D/g,''),10)||0, nb=parseInt(b.replace(/\D/g,''),10)||0;
+  return na-nb;
+}
+async function parseXlsx(buf){
+  const u8=new Uint8Array(buf), dv=new DataView(buf);
+  let eocd=-1;
+  for(let i=u8.length-22;i>=Math.max(0,u8.length-22-65536);i--){
+    if(dv.getUint32(i,true)===0x06054b50){ eocd=i; break; }
+  }
+  if(eocd<0) throw new Error('不是有效的 .xlsx 文件（ZIP 结构缺失）');
+  const total=dv.getUint16(eocd+10,true);
+  let q=dv.getUint32(eocd+16,true);
+  const files={};
+  for(let k=0;k<total;k++){
+    if(q+46>u8.length || dv.getUint32(q,true)!==0x02014b50) break;
+    const method=dv.getUint16(q+10,true), csize=dv.getUint32(q+20,true);
+    const nameLen=dv.getUint16(q+28,true), extraLen=dv.getUint16(q+30,true), cmtLen=dv.getUint16(q+32,true);
+    const lho=dv.getUint32(q+42,true);
+    const name=new TextDecoder().decode(u8.subarray(q+46,q+46+nameLen));
+    files[name]={method,csize,lho};
+    q+=46+nameLen+extraLen+cmtLen;
+  }
+  async function read(name){
+    const f=files[name]; if(!f) return null;
+    const ln=dv.getUint16(f.lho+26,true), le=dv.getUint16(f.lho+28,true);
+    const start=f.lho+30+ln+le;
+    const data=u8.subarray(start,start+f.csize);
+    if(f.method===0) return new TextDecoder().decode(data);
+    if(f.method===8) return new TextDecoder().decode(await inflateRaw(data));
+    throw new Error('不支持的压缩方式：'+f.method);
+  }
+  const sstXml=await read('xl/sharedStrings.xml');
+  const sst=sstXml?[...new DOMParser().parseFromString(sstXml,'application/xml').getElementsByTagName('si')]
+      .map(si=>[...si.getElementsByTagName('t')].map(t=>t.textContent).join('')):[];
+  const sheetName=Object.keys(files).filter(n=>/^xl\/worksheets\/sheet\d+\.xml$/.test(n)).sort(naturalSheet)[0];
+  if(!sheetName) throw new Error('xlsx 中未找到工作表');
+  const sheetXml=await read(sheetName);
+  const doc=new DOMParser().parseFromString(sheetXml,'application/xml');
+  const rows=[];
+  for(const rowEl of doc.getElementsByTagName('row')){
+    const arr=[];
+    for(const c of rowEl.getElementsByTagName('c')){
+      const ref=c.getAttribute('r')||'';
+      let idx=0; for(const ch of ref){ if(ch>='A'&&ch<='Z') idx=idx*26+(ch.charCodeAt(0)-64); else break; }
+      idx=Math.max(0,idx-1);
+      const t=c.getAttribute('t'), vEl=c.getElementsByTagName('v')[0], isEl=c.getElementsByTagName('is')[0];
+      let v='';
+      if(t==='s'&&vEl) v=sst[parseInt(vEl.textContent,10)]??'';
+      else if(t==='inlineStr'&&isEl) v=isEl.textContent||'';
+      else if(vEl) v=vEl.textContent;
+      arr[idx]=String(v??'').trim();
+    }
+    if(arr.some(x=>x!==undefined&&x!=='')) rows.push(arr);
+  }
+  if(!rows.length) throw new Error('工作表内容为空');
+  return {headers:rows[0], rows:rows.slice(1)};
+}
+
+/* —— Excel 行 → 统计对象；与已载入 ISO 数据按书名匹配补充中图法分类等 —— */
+const SUBNAME={Q1:'普通生物学',Q2:'细胞生物学',Q3:'遗传学',Q4:'生理学',Q5:'生物化学',Q6:'生物物理学',Q7:'分子生物学',Q8:'生物工程学',
+Q91:'古生物学',Q93:'微生物学',Q94:'植物学',Q95:'动物学',Q96:'昆虫学',Q98:'人类学',
+R1:'预防医学、卫生学',R2:'中国医学',R3:'基础医学',R4:'临床医学',R5:'内科学',R6:'外科学',
+R71:'妇产科学',R72:'儿科学',R73:'肿瘤学',R74:'神经病学与精神病学',R75:'皮肤病学、性病学',R76:'耳鼻咽喉科学',R77:'眼科学',R78:'口腔科学',R79:'外国民族医学',R8:'特种医学',R9:'药学',
+R32:'人体解剖学',R33:'人体生理学',R36:'病理学',R37:'医学微生物学',R38:'医学寄生虫学',R39:'医学免疫学',
+R14:'放射卫生学',R16:'个人卫生',R18:'流行病学与防疫',R22:'中医基础理论',R24:'中医临床学',R25:'中医内科学',R28:'中药学',R289:'方剂学',R29:'中国少数民族医学',R94:'药剂学',R97:'临床药学',
+R11:'卫生基础科学',R12:'环境卫生、环境医学',R13:'劳动卫生',R15:'营养卫生、食品卫生',R17:'妇幼卫生',R19:'保健组织与事业',
+R21:'中医预防、卫生学',R26:'中医外科',
+R31:'医用一般科学',R34:'人体生物化学、分子生物学',R35:'人体生物物理学',
+R44:'诊断学',R45:'治疗学',R47:'护理学',R48:'临终关怀学',R49:'康复医学',
+R51:'传染病',R52:'结核病',R53:'寄生虫病',R54:'心脏、血管（循环系）疾病',R55:'血液及淋巴系疾病',R56:'呼吸系及胸部疾病',R57:'消化系及腹部疾病',R58:'内分泌腺疾病及代谢病',R59:'全身性疾病',
+R61:'外科手术学',R62:'整形外科学',R63:'外科感染',R64:'创伤外科学',R65:'外科学各论',R68:'骨科学',R69:'泌尿科学（泌尿生殖系疾病）',
+R81:'放射医学',R82:'军事医学',R83:'航海医学',R84:'潜水医学',R85:'航空航天医学',R87:'运动医学',R89:'法医学',
+R91:'药物基础科学',R92:'药典、药方集、药物鉴定',R93:'生药学（天然药物学）',R95:'药事组织',R96:'药理学',R98:'各科药物',R99:'毒物学（毒理学）'};
+function normTitle(s){ return String(s||'').replace(/[\s：:，,。．·\-—–_（）()【】\[\]〔〕“”"‘’']/g,''); }
+function pickCol(H,res){ for(const re of res){ const i=H.findIndex(h=>h&&re.test(h.trim())); if(i>=0) return i; } return -1; }
+$('xlFile').addEventListener('change',e=>{ if(e.target.files[0]) loadXlsx(e.target.files[0]); });
+function parseCsv(text){                     // 极简 CSV：支持引号包裹字段、双写引号转义、字段内换行；自动识别逗号/分号/制表符
+  if(text.charCodeAt(0)===0xFEFF) text=text.slice(1);          // 去 BOM
+  const nl=text.indexOf('\n');
+  const head=text.slice(0, nl<0? text.length: nl);
+  let inQ=false; const cnt={',':0,';':0,'\t':0};
+  for(const ch of head){ if(ch==='"') inQ=!inQ; else if(!inQ&&(ch in cnt)) cnt[ch]++; }
+  const top=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a])[0];
+  const delim=cnt[top]>0? top:',';
+  const rows=[]; let row=[], field='';
+  inQ=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(inQ){
+      if(ch==='"'){ if(text[i+1]==='"'){ field+='"'; i++; } else inQ=false; }
+      else field+=ch;
+    }
+    else if(ch==='"') inQ=true;
+    else if(ch===delim){ row.push(field); field=''; }
+    else if(ch==='\n'){ row.push(field); rows.push(row); row=[]; field=''; }
+    else if(ch!=='\r') field+=ch;
+  }
+  if(field!==''||row.length){ row.push(field); rows.push(row); }
+  const cleaned=rows.filter(r=>r.some(c=>String(c).trim()!==''));   // 去掉全空行
+  if(!cleaned.length) throw new Error('CSV 内容为空');
+  return {headers:cleaned[0].map(h=>String(h).trim()), rows:cleaned.slice(1).map(r=>r.map(c=>String(c).trim()))};
+}
+async function loadXlsx(file){               // 已选书目清单：支持 .xlsx/.xlsm 与 .csv
+  try{
+    let note='';
+    if(/\.csv$/i.test(file.name)||/csv/i.test(file.type||'')){
+      const {enc,text}=decodeAuto(new Uint8Array(await file.arrayBuffer()));   // UTF-8 优先，失败按 GBK
+      selRaw=parseCsv(text);
+      note=`｜${enc.toUpperCase()} 编码`;
+    }else{
+      selRaw=await parseXlsx(await file.arrayBuffer());
+    }
+    $('xlInfo').textContent=`✅ ${file.name}｜${selRaw.rows.length} 行${note}｜表头：${selRaw.headers.join('、')}`;
+    renderSelected();
+  }catch(e){ selRaw=null; $('xlInfo').textContent='❌ 解析失败：'+e.message; }
+}
+function renderSelected(){
+  const kp=$('selKpis'), grid=$('selGrid');
+  if(!selRaw){
+    kp.innerHTML='';
+    grid.innerHTML='<div class="card"><h3>尚未上传 Excel</h3><div class="hint">点击上方"上传Excel文件"，选择包含 书名 / 定价 / 实洋 / 著者 / 出版社 / 出版时间 / 内容简介 / 选择理由 等列的 .xlsx 选购清单。</div></div>';
+    return;
+  }
+  const H=selRaw.headers;
+  const ix={
+    title: pickCol(H,[/书名|题名/]),
+    price: pickCol(H,[/^定价/]),
+    net:   pickCol(H,[/实洋/]),
+    author:pickCol(H,[/^(著者|作者|第一责任者|责任者)/]),
+    pub:   pickCol(H,[/出版社|出版者/]),
+    date:  pickCol(H,[/出版时间|出版日期|出版年/]),
+    clc:   pickCol(H,[/中图法|分类号|^分类/]),
+    sub:   pickCol(H,[/主题词/]),
+    lang:  pickCol(H,[/语种/]),
+    bind:  pickCol(H,[/装帧/]),
+  };
+  if(ix.title<0||ix.price<0){
+    kp.innerHTML='';
+    grid.innerHTML='<div class="card"><h3>无法识别的表格结构</h3><div class="hint">未找到"书名/图书书名"和"定价"列。当前表头：'+esc(H.join('、'))+'</div></div>';
+    return;
+  }
+  const g=(row,i)=> i>=0? String(row[i]??'').trim():'';
+  selA=selRaw.rows.map(r=>({
+    title:g(r,ix.title), price:g(r,ix.price), net:g(r,ix.net), author:g(r,ix.author),
+    publisher:g(r,ix.pub), pubdate:g(r,ix.date), clc:g(r,ix.clc), subject:g(r,ix.sub),
+    lang:g(r,ix.lang), binding:g(r,ix.bind),
+    _p:parsePrice(g(r,ix.price)), _n:parsePrice(g(r,ix.net)), _y:parseYear(g(r,ix.date))
+  })).filter(o=>o.title && !/^(合计|总计|小计)$/.test(o.title));
+  let matched=0;
+  if(allRows.length){
+    const idx=new Map();
+    for(const r of allRows){ const k=normTitle(r['主题名']); if(k&&!idx.has(k)) idx.set(k,r); }
+    for(const o of selA){
+      let hit=idx.get(normTitle(o.title));
+      if(!hit){
+        const k=normTitle(o.title);
+        if(k.length>=4) for(const [kk,v] of idx){
+          if(kk.length>=4&&(kk.startsWith(k)||k.startsWith(kk))){ hit=v; break; }
+        }
+      }
+      if(hit){ matched++; o._matched=true;
+        if(!o.clc) o.clc=hit['中图法分类'];
+        if(!o.subject) o.subject=hit['主题词'];
+        if(!o.lang) o.lang=hit['语种'];
+        if(!o.binding) o.binding=hit['装帧'];
+      }
+    }
+  }
+  const prices=selA.map(o=>o._p).filter(Number.isFinite);
+  const nets=selA.map(o=>o._n).filter(Number.isFinite);
+  kp.innerHTML=`
+    <div class="k"><b>${selA.length}</b>已选品种数</div>
+    <div class="k"><b>${prices.length?'¥'+prices.reduce((a,b)=>a+b,0).toFixed(2):'—'}</b>定价合计</div>
+    <div class="k"><b>${nets.length?'¥'+nets.reduce((a,b)=>a+b,0).toFixed(2):'—'}</b>实洋合计</div>
+    <div class="k"><b>${prices.length?(prices.reduce((a,b)=>a+b,0)/prices.length).toFixed(1):'—'}</b>平均定价(元)</div>
+    <div class="k"><b>${allRows.length?matched+' / '+selA.length:'—'}</b>匹配中图法分类</div>`;
+  function subPairs(letter){
+    const agg=new Map();
+    for(const o of selA){
+      const m=(o.clc||'').match(new RegExp('^'+letter+'\\d{1,2}'));
+      if(!m) continue;
+      const code=m[0];
+      const label=code+' '+(SUBNAME[code]||SUBNAME[code.slice(0,letter.length+1)]||'');
+      agg.set(label,(agg.get(label)||0)+1);
+    }
+    return [...agg.entries()].sort((a,b)=>b[1]-a[1]);
+  }
+  const yrMap=new Map();
+  selA.forEach(o=>{ if(Number.isFinite(o._y)) yrMap.set(o._y,(yrMap.get(o._y)||0)+1); });
+  const mods=[
+    {title:'中图法Q类详细小类分布', pairs:subPairs('Q'), pie:true},
+    {title:'中图法R类详细小类分布', pairs:subPairs('R'), pie:true},
+    {title:'出版社分布 Top 12', pairs:topCount(selA.map(o=>o.publisher),12)},
+    {title:'生物医药类十大出版社占比', pairs:top10PubPairs(selA.map(o=>o.publisher)), pie:true, mode:'pie'},
+    {title:'出版年份分布', pairs:[...yrMap.entries()].sort((a,b)=>a[0]-b[0]).slice(-20)},
+    {title:'定价分布（元）', pairs:topCount(prices.map(p=>p<50?'<50':p<100?'50–99':p<150?'100–149':p<200?'150–199':p<300?'200–299':'≥300'),8)},
+  ];
+  const subTop=topCount(selA.flatMap(o=>(o.subject||'').split(/[；;]/)).map(s=>s.trim()).filter(Boolean),15);
+  if(subTop.length) mods.push({title:'主题词 Top 15',pairs:subTop});
+  const langTop=topCount(selA.map(o=>o.lang).filter(Boolean),8);
+  if(langTop.length) mods.push({title:'语种分布',pairs:langTop});
+  const bindTop=topCount(selA.map(o=>o.binding).filter(Boolean),6);
+  if(bindTop.length) mods.push({title:'装帧分布',pairs:bindTop});
+  selModules=mods.map(m=>({...m, mode:m.mode||'bar'}));
+  grid.innerHTML=selModules.map((m,i)=>`<div class="card"><h3>${esc(m.title)}</h3>
+    ${m.pie?`<div style="margin-bottom:6px"><button class="mini ${m.mode==='pie'?'':'on'}" id="barbtn_${i}" data-m="bar" onclick="setSelMode(${i},'bar')">条带图</button><button class="mini ${m.mode==='pie'?'on':''}" id="piebtn_${i}" data-m="pie" onclick="setSelMode(${i},'pie')">饼图</button></div>`:''}
+    <div id="sm_${i}"></div></div>`).join('');
+  selModules.forEach((m,i)=>renderSelModule(i));
+}
+function pieSVG(pairs){
+  const total=pairs.reduce((a,p)=>a+p[1],0)||1;
+  const colors=pairs.map((_,i)=>`hsl(${Math.round(i*360/pairs.length)},55%,52%)`);
+  let a0=-Math.PI/2, paths='';
+  pairs.forEach((p,i)=>{
+    const a1=a0+p[1]/total*Math.PI*2, large=(a1-a0)>Math.PI?1:0;
+    const x0=(100+80*Math.cos(a0)).toFixed(2), y0=(100+80*Math.sin(a0)).toFixed(2);
+    const x1=(100+80*Math.cos(a1)).toFixed(2), y1=(100+80*Math.sin(a1)).toFixed(2);
+    paths+= p[1]/total>=0.9999
+      ? `<circle cx="100" cy="100" r="80" fill="${colors[i]}"/>`
+      : `<path d="M100,100 L${x0},${y0} A80,80 0 ${large} 1 ${x1},${y1} Z" fill="${colors[i]}" stroke="#fff" stroke-width="1"/>`;
+    a0=a1;
+  });
+  const legend=pairs.map((p,i)=>`<div class="lgd"><span style="background:${colors[i]}"></span>${esc(p[0])}：<b>${p[1]}</b> 种（${(p[1]/total*100).toFixed(1)}%）</div>`).join('');
+  return `<div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap"><svg viewBox="0 0 200 200" width="185" height="185" role="img">${paths}</svg><div>${legend}</div></div>`;
+}
+function renderSelModule(i){
+  const m=selModules[i];
+  $('sm_'+i).innerHTML=m.pairs.length?(m.mode==='pie'?pieSVG(m.pairs):barsHTML(m.pairs)):'（暂无数据）';
+}
+function setSelMode(i,mode){
+  selModules[i].mode=mode;
+  renderSelModule(i);
+  ['bar','pie'].forEach(m=>{
+    const b=document.getElementById(m+'btn_'+i);
+    if(b) b.classList.toggle('on', m===mode);
+  });
+}
+
+/* ================= AI 面板 ================= */
+function normalizeUrl(u){                    // 自动补全 /chat/completions
+  u=(u||'').trim();
+  if(!u) return u;
+  u=u.replace(/\/+$/,'');
+  if(/\/chat\/completions$/.test(u)) return u;
+  return u+'/chat/completions';
+}
+function llmCfg(){ return {
+  url:normalizeUrl($('cfgUrl').value), key:$('cfgKey').value.trim(),
+  model:$('cfgModel').value.trim(), temp:parseFloat($('cfgTemp').value)||0.3,
+  ctx:$('cfgCtx').value, stream:$('cfgStream').checked, sys:$('cfgSys').value.trim()
+};}
+function saveCfg(){ localStorage.setItem('isoAiCfg',JSON.stringify({url:$('cfgUrl').value,key:$('cfgKey').value,model:$('cfgModel').value,temp:$('cfgTemp').value,ctx:$('cfgCtx').value,sys:$('cfgSys').value})); }
+function loadCfg(){ try{ const c=JSON.parse(localStorage.getItem('isoAiCfg')||'{}');
+  if(c.url)$('cfgUrl').value=c.url; if(c.key)$('cfgKey').value=c.key; if(c.model)$('cfgModel').value=c.model;
+  if(c.temp)$('cfgTemp').value=c.temp; if(c.ctx)$('cfgCtx').value=c.ctx; if(c.sys)$('cfgSys').value=c.sys;
+  if(c.url) $('aiState').textContent='已配置接口，载入数据后即可对话';
+}catch(e){} }
+function clearCfg(){ ['cfgUrl','cfgKey','cfgModel'].forEach(i=>$(i).value=''); localStorage.removeItem('isoAiCfg'); $('aiState').textContent='未接入大模型'; }
+function toggleAI(){
+  const p=$('aiPanel'), b=$('aiBody');
+  const open=b.style.display==='none';
+  b.style.display=open?'flex':'none';
+  p.classList.toggle('min',!open);
+  $('aiArrow').textContent=open?'▴':'▾';
+}
+/* 数据上下文构造：统计摘要 + 相关检索 + 样本 */
+function relSearch(question, rows, n){
+  const q=question.toLowerCase().replace(/[\s，。、？！?!,.:：;"'“”()（）]/g,'');
+  if(!q) return [];
+  const grams=[]; for(let i=0;i<q.length-1;i++) grams.push(q.slice(i,i+2));
+  const scored=rows.map(r=>{
+    const hay=(r['主题名']+' '+r['副题名']+' '+r['第一责任者']+' '+r['第二责任者']+' '+r['出版者']+' '+r['主题词']+' '+r['中图法分类']+' '+r['内容简介']).toLowerCase();
+    let s=0; for(const g of new Set(grams)) if(hay.includes(g)) s+=hay.split(g).length-1;
+    return [s,r];
+  }).filter(x=>x[0]>0).sort((a,b)=>b[0]-a[0]).slice(0,n);
+  return scored.map(x=>x[1]);
+}
+function compactRow(r, absLen){
+  return {记录号:r['记录号'], ISBN:r['ISBN'], 题名:r['主题名'], 副题名:r['副题名'],
+    责任者:(r['第一责任者']+(r['第二责任者']?' / '+r['第二责任者']:'')),
+    出版:`${r['出版地']} ${r['出版者']} ${r['出版时间']}`, 页码:r['页码'], 定价:r['定价'],
+    分类:r['中图法分类'], 语种:r['语种'], 主题词:r['主题词'],
+    简介:(r['内容简介']||'').slice(0, absLen??150)};
+}
+function buildDigest(question){
+  const cfg=llmCtxCfg();
+  const rows=viewRows;
+  let s=`【数据集概况】ISO 2709/CNMARC 书目数据（文件：${fileName}），共 ${allRows.length} 条记录，当前筛选 ${rows.length} 条`+(sortState.col?`，已按「${sortState.col}」${sortState.dir>0?'升':'降'}序排序`:'')+'。\n';
+  s+='【字段】记录号/ISBN/主题名/副题名/责任者/丛书/定价/装帧/出版地/出版者/出版时间/页码/开本/读者对象/内容简介/主题词/中图法分类/语种\n';
+  const price=nums(r=>r._价格数值);
+  if(price.length) s+=`【定价统计】平均 ${(price.reduce((a,b)=>a+b,0)/price.length).toFixed(2)} 元，中位数 ${quart(price)[2]}，区间 ${price[0]}–${price[price.length-1]} 元\n`;
+  if(discount!==100) s+=`【订购折扣】当前按 ${discount}% 计折扣，"实洋"列=定价×${discount}%（如需原价请按"定价"列）\n`;
+  const yr=viewRows.map(r=>r._年份).filter(Number.isFinite);
+  if(yr.length){ const ym=new Map(); yr.forEach(y=>ym.set(y,(ym.get(y)||0)+1));
+    s+=`【年份分布】${[...ym.entries()].sort((a,b)=>b[1]-a[1]).slice(0,8).map(e=>e[0]+'年:'+e[1]+'种').join('，')}\n`; }
+  s+=`【出版社 Top10】${topCount(rows.map(r=>r['出版者']),10).map(e=>e[0]+'('+e[1]+')').join('，')}\n`;
+  s+=`【中图法大类 Top10】${topCount(rows.map(r=>(r['中图法分类']||'')[0]),10).map(e=>e[0]+'('+(CLC[e[0]]||'')+')×'+e[1]).join('，')}\n`;
+  if(cfg.mode==='pub50'){                     // 十大出版社占比统计 + 50% 门槛判断
+    const total=rows.length||1;
+    const pairs=top10PubPairs(rows.map(r=>r['出版者']));
+    const share=pairs.filter(p=>TOP10_PUBS.includes(p[0])).reduce((a,p)=>a+p[1],0);
+    const pct=share/total*100;
+    s+=`【生物医药十大出版社占比（出版者列）】`+pairs.map(p=>`${p[0]}:${p[1]}种(${(p[1]/total*100).toFixed(1)}%)`).join('，')+'\n';
+    s+=`【占比门槛判断】十大出版社合计 ${share} 种，占当前筛选 ${rows.length} 条的 ${pct.toFixed(1)}%，${pct>=50?'不低于':'低于'}50%\n`;
+  }
+  const N={min:[0,150],stats:[8,10],more:[15,30],all:[0,0],pub50:[0,0]}[cfg.mode];
+  if(cfg.mode!=='min'){
+    const rel=(question && cfg.mode!=='all' && cfg.mode!=='pub50')?relSearch(question,rows,N[0]):[];
+    if(rel.length) s+=`【与问题最相关的记录】\n`+rel.map(r=>JSON.stringify(compactRow(r,200))).join('\n')+'\n';
+    if(cfg.mode==='all'||cfg.mode==='pub50'){
+      s+=`【当前筛选全部记录，共 ${rows.length} 条，以下为完整列表】(简介截断80字)\n`
+        +rows.map(r=>JSON.stringify(compactRow(r,80))).join('\n')+'\n';
+    }else{
+      s+=`【样本记录】\n`+rows.slice(0,N[1]).map(r=>JSON.stringify(compactRow(r))).join('\n');
+    }
+  }
+  return s;
+}
+function llmCtxCfg(){ const m=$('cfgCtx').value;
+  return {mode:m}; }
+function addMsg(cls,text){ const d=document.createElement('div'); d.className='msg '+cls;
+  d.innerHTML=cls==='ai'?renderMD(text):esc(text); $('msgs').appendChild(d);
+  $('msgs').scrollTop=$('msgs').scrollHeight; return d; }
+function renderMD(t){                       // 极简 Markdown：粗体/行内代码/换行
+  return esc(t).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/`([^`]+)`/g,'<code>$1</code>');
+}
+async function callLLM(messages, onDelta){
+  const cfg=llmCfg();
+  if(!cfg.url) throw new Error('请先在左侧填入接口地址（OpenAI 兼容 /chat/completions）');
+  const body={model:cfg.model||'gpt-4o-mini', messages, temperature:cfg.temp, stream:cfg.stream};
+  const res=await fetch(cfg.url,{method:'POST',
+    headers:{'Content-Type':'application/json', ...(cfg.key?{'Authorization':'Bearer '+cfg.key}:{})},
+    body:JSON.stringify(body)});
+  if(!res.ok){
+    let d=await res.text().catch(()=>'');
+    let hint='';
+    if(res.status===404) hint='（404＝接口路径不存在：请确认 base 地址正确，完整路径应为 …/chat/completions）';
+    else if(res.status===401||res.status===403) hint='（鉴权失败：请检查 API Key 是否正确、是否有权限）';
+    else if(res.status===429) hint='（请求过于频繁或额度不足）';
+    throw new Error(`接口返回 ${res.status}：${d.slice(0,200)} ${hint}｜请求地址：${cfg.url}`);
+  }
+  if(!cfg.stream){ const j=await res.json(); return j.choices?.[0]?.message?.content||'(空响应)'; }
+  const reader=res.body.getReader(), dec=new TextDecoder();
+  let buf='', full='';
+  while(true){
+    const {done,value}=await reader.read(); if(done) break;
+    buf+=dec.decode(value,{stream:true});
+    let i;
+    while((i=buf.indexOf('\n'))>=0){
+      const line=buf.slice(0,i).trim(); buf=buf.slice(i+1);
+      if(!line.startsWith('data:')) continue;
+      const payload=line.slice(5).trim();
+      if(payload==='[DONE]') return full;
+      try{ const j=JSON.parse(payload);
+        const delta=j.choices?.[0]?.delta?.content||j.choices?.[0]?.message?.content||'';
+        if(delta){ full+=delta; onDelta(full); } }catch(e){}
+    }
+  }
+  return full;
+}
+let busy=false;
+/* —— AI 勾选指令：AI 回复中可带 <<勾选 记录号1,记录号2,…>>，系统自动在表格中勾选对应条目 —— */
+const AI_CHECK_INSTR='\n\n【勾选指令】当且仅当用户要求你勾选/选择/标记某些图书（如"勾选所有R类图书""勾选定价低于50元的书"）时：先正常给出分析和书目清单，再在回复最后一行单独输出一行机器可读指令：<<勾选 记录号1,记录号2,…>>。其中记录号必须使用数据上下文中"记录号"字段的完整原值（含前导零），多个用英文逗号分隔；只能从提供的记录中选择。若用户没有要求勾选图书，严禁输出该指令。';
+function stripCheck(t){ return String(t??'').replace(/<<\s*勾选[\s\S]*?>>/g,'').replace(/<<\s*勾选[\s\S]*$/,''); }
+function aiMatchCheck(ans){                  // 解析 <<勾选 …>> 指令并匹配记录（纯查找，不修改状态）
+  const m=String(ans||'').match(/<<\s*勾选([\s\S]*?)>>/);
+  if(!m) return null;
+  const ids=m[1].replace(/^\s*记录号[:：]?\s*/,'').split(/[,，;；、|\s]+/).map(s=>s.trim()).filter(Boolean);
+  const norm=s=>s.replace(/^0+/,'');
+  const byId=new Map(), byNorm=new Map(), byIsbn=new Map();
+  for(const r of allRows){
+    const id=String(r['记录号']||'').trim();
+    if(id){ if(!byId.has(id)) byId.set(id,r); const n=norm(id); if(n&&!byNorm.has(n)) byNorm.set(n,r); }
+    const ib=String(r['ISBN']||'').replace(/[^0-9Xx]/g,'');
+    if(ib&&!byIsbn.has(ib)) byIsbn.set(ib,r);
+  }
+  const rows=[];
+  for(const rawId of ids){
+    const hit=byId.get(rawId)||byNorm.get(norm(rawId))||byIsbn.get(rawId.replace(/[^0-9Xx]/g,''));
+    if(hit&&!rows.includes(hit)) rows.push(hit);
+  }
+  return {total:ids.length, rows};
+}
+function applyAiChecks(ans){                 // 应用 AI 勾选：勾选记录、刷新表格并切到数据表格页
+  const res=aiMatchCheck(ans);
+  if(!res) return null;
+  for(const r of res.rows) checkedRows.add(r);
+  if(res.rows.length){
+    applyFilter();
+    const tb=document.querySelector('.tab[data-t="table"]');
+    if(tb&&!tb.classList.contains('on')) tb.click();
+  }
+  return res;
+}
+async function ask(){
+  if(busy||!allRows.length) return;
+  const question=$('q').value.trim(); if(!question) return;
+  $('q').value=''; saveCfg();
+  if((llmCtxCfg().mode==='all'||llmCtxCfg().mode==='pub50') && viewRows.length>120){
+    if(!confirm(`当前筛选有 ${viewRows.length} 条记录，全部附加将消耗大量 token（约 ${Math.round(viewRows.length*0.25/1000)}万+ token），可能超出模型上下文导致调用失败。\n确定继续发送全部记录吗？`)) return;
+  }
+  addMsg('user',question);
+  const ctx=buildDigest(question);
+  addMsg('ai',`⏳ 正在分析${''}…`);
+  const aiDiv=$('msgs').lastChild;
+  busy=true; $('send').disabled=true;
+  const messages=[
+    {role:'system',content:(($('cfgSys').value.trim()||'你是书目数据分析助手，请根据提供的数据用中文简明准确地回答。若上下文已注明为"全部记录/完整列表"，请直接基于全部记录分析，不要声称只看到部分数据；仅在上下文确实不完整时才说明数据范围。')+AI_CHECK_INSTR)+`\n\n以下是当前数据上下文：\n${ctx}`},
+    {role:'user',content:question}
+  ];
+  const det=document.createElement('details');
+  det.innerHTML=`<summary>本次附加的数据上下文（${ctx.length} 字）</summary><div style="white-space:pre-wrap">${esc(ctx)}</div>`;
+  try{
+    const ans=await callLLM(messages,t=>{ aiDiv.innerHTML=renderMD(stripCheck(t))+' ▍'; $('msgs').scrollTop=1e9; });
+    const chk=applyAiChecks(ans);          // 解析并应用 <<勾选 …>> 指令
+    let note='';
+    if(chk){
+      note = chk.rows.length
+        ? `<p class="hint" style="color:#0f766e;font-weight:bold">✔ 已按 AI 结果在数据表格中勾选 ${chk.rows.length} 条记录`
+          +(chk.total>chk.rows.length?`（指令含 ${chk.total} 个编号，${chk.total-chk.rows.length} 条未匹配到数据）`:'')
+          +'，可翻页查看勾选状态，或直接批量删除/导出。</p>'
+        : '<p class="hint" style="color:#b91c1c">⚠ AI 返回了勾选指令，但没有匹配到任何记录（编号需来自数据中的"记录号"）。</p>';
+    }
+    aiDiv.innerHTML=renderMD((ans?stripCheck(ans).trim():'')||'(空响应)')+note; aiDiv.appendChild(det);
+  }catch(e){
+    aiDiv.remove();
+    addMsg('err','调用失败：'+e.message+' —— 请检查接口地址/密钥/网络，并确认服务端允许浏览器跨域(CORS)。');
+  }
+  busy=false; $('send').disabled=false; $('msgs').scrollTop=1e9;
+}
+async function testLLM(){
+  saveCfg();
+  addMsg('user','(测试连接)');
+  try{
+    const ans=await callLLM([{role:'user',content:'请回复：连接成功'}],()=>{});
+    addMsg('ai',ans);
+  }catch(e){ addMsg('err','连接失败：'+e.message); }
+}
+$('send').onclick=ask;
+$('q').addEventListener('keydown',e=>{ if(e.key==='Enter') ask(); });
+document.querySelectorAll('#aiCfg input,#aiCfg select,#aiCfg textarea').forEach(el=>el.addEventListener('change',saveCfg));
+$('cfgPreset').addEventListener('change',e=>{
+  const v=e.target.value; if(!v) return;
+  const [url,model]=v.split('|');
+  $('cfgUrl').value=url; $('cfgModel').value=model;
+  saveCfg();
+  $('aiState').textContent='已填充预设，填入 API Key 后点击「测试连接」';
+});
+$('cfgSys').placeholder='默认：你是书目数据分析助手，请根据提供的数据用中文简明准确地回答。';
+
+/* 初始化 */
+loadCfg();
+render();
+/* 支持 ?load=文件名 自动载入同目录 ISO（演示/测试用，需经 HTTP 访问） */
+const _ql = new URLSearchParams(location.search).get('load');
+if(_ql){
+  fetch(decodeURIComponent(_ql)).then(r=>{ if(!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+    .then(b=>loadFile(new File([b],decodeURIComponent(_ql))))
+    .catch(()=>{ $('fileInfo').textContent='自动载入失败，请手动选择文件'; });
+}
+/* 支持 ?xls=文件名 自动载入同目录 Excel/CSV（演示/测试用，需经 HTTP 访问） */
+const _qx = new URLSearchParams(location.search).get('xls');
+if(_qx){
+  fetch(decodeURIComponent(_qx)).then(r=>{ if(!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+    .then(b=>loadXlsx(new File([b],decodeURIComponent(_qx))))
+    .catch(()=>{ $('xlInfo').textContent='自动载入 Excel/CSV 失败，请手动上传'; });
+}
+</script>
+</body>
+</html>
