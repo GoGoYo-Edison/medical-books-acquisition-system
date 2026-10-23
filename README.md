@@ -25,7 +25,7 @@
 
 ### 方式一：本地直接使用
 
-用较新版本的 Chrome / Edge / Firefox 打开 HTML 文件即可，无需安装、无需联网（AI 问答除外）。
+用较新版本的 Chrome / Edge / Firefox 打开Releases里面的 HTML 文件即可，无需安装、无需联网（AI 问答除外）。
 
 ### 方式二：经本地 HTTP 访问（支持演示参数一键载入示例数据）
 
